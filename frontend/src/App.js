@@ -5,6 +5,7 @@ import AttackSelector from "./components/AttackSelector";
 import LiveFeed from "./components/LiveFeed";
 import DamageReport from "./components/DamageReport";
 import "./index.css";
+import DefenseModule from "./components/DefenseModule";
 
 function App() {
   const [file, setFile] = useState(null);
@@ -120,6 +121,9 @@ function App() {
 
         {/* Damage Report */}
         {results && <DamageReport results={results} />}
+        {results && (
+          <DefenseModule file={file} attackResults={results} />
+        )}
       </div>
     </div>
   );
