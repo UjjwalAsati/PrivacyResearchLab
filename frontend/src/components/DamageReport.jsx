@@ -1,4 +1,6 @@
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 function ScoreCard({ title, score, level, icon }) {
   const levelClass = level?.toLowerCase() === "critical" ? "critical"
@@ -38,6 +40,182 @@ function ScoreCard({ title, score, level, icon }) {
     </div>
   );
 }
+const generatePDF = (results, overallScore, overallLevel) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // ── Background ──
+  doc.setFillColor(10, 0, 15);
+  doc.rect(0, 0, pageWidth, 297, "F");
+
+  // ── Header bar ──
+  doc.setFillColor(43, 0, 96);
+  doc.rect(0, 0, pageWidth, 40, "F");
+
+  // ── Title ──
+  doc.setTextColor(176, 38, 255);
+  doc.setFontSize(22);
+  doc.setFont("helvetica", "bold");
+  doc.text("PRIVACYBREACH LAB", pageWidth / 2, 16, { align: "center" });
+
+  doc.setTextColor(157, 78, 221);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("DATA PRIVACY ATTACK SIMULATION REPORT", pageWidth / 2, 24, { align: "center" });
+
+  doc.setTextColor(100, 60, 120);
+  doc.setFontSize(8);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 32, { align: "center" });
+
+  // ── Skull + BREACH REPORT ──
+  doc.setTextColor(255, 32, 86);
+  doc.setFontSize(28);
+  doc.setFont("helvetica", "bold");
+  doc.text("BREACH REPORT", pageWidth / 2, 58, { align: "center" });
+
+  // ── Overall score box ──
+  doc.setFillColor(19, 0, 37);
+  doc.setDrawColor(255, 32, 86);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(20, 65, pageWidth - 40, 30, 3, 3, "FD");
+
+  doc.setTextColor(255, 32, 86);
+  doc.setFontSize(32);
+  doc.setFont("helvetica", "bold");
+  doc.text(`${overallScore}/100`, pageWidth / 2, 84, { align: "center" });
+
+  doc.setTextColor(157, 78, 221);
+  doc.setFontSize(10);
+  doc.text(`OVERALL RISK LEVEL: ${overallLevel}`, pageWidth / 2, 91, { align: "center" });
+
+  // ── Attack scores table ──
+  doc.setTextColor(176, 38, 255);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("ATTACK RESULTS SUMMARY", 20, 108);
+
+  const attackRows = [];
+  if (results.recon) attackRows.push([
+    "🔍 RECON",
+    `${results.recon.overall_risk_score}/100`,
+    results.recon.overall_risk_level,
+    `${results.recon.quasi_identifiers?.length || 0} quasi-identifiers, ${results.recon.sensitive_columns?.length || 0} sensitive cols`
+  ]);
+  if (results.linkage) attackRows.push([
+    "🔗 LINKAGE",
+    `${results.linkage.linkage_risk_score}/100`,
+    results.linkage.linkage_risk_level,
+    `${results.linkage.uniqueness_percent}% records uniquely identifiable`
+  ]);
+  if (results.inference) attackRows.push([
+    "🧠 INFERENCE",
+    `${results.inference.inference_risk_score}/100`,
+    results.inference.inference_risk_level,
+    `${results.inference.attack_accuracy}% prediction accuracy`
+  ]);
+  if (results.membership) attackRows.push([
+    "👤 MEMBERSHIP",
+    `${results.membership.membership_risk_score}/100`,
+    results.membership.membership_risk_level,
+    `${results.membership.attack_accuracy}% attack accuracy`
+  ]);
+  if (results.deanon) attackRows.push([
+    "🔄 DE-ANON",
+    `${results.deanon.deanon_risk_score}/100`,
+    results.deanon.deanon_risk_level,
+    `${results.deanon.attack_summary?.breach_rate} breach rate`
+  ]);
+
+  doc.autoTable({
+    startY: 112,
+    head: [["ATTACK", "SCORE", "RISK LEVEL", "KEY FINDING"]],
+    body: attackRows,
+    theme: "grid",
+    headStyles: {
+      fillColor: [43, 0, 96],
+      textColor: [176, 38, 255],
+      fontStyle: "bold",
+      fontSize: 9
+    },
+    bodyStyles: {
+      fillColor: [19, 0, 37],
+      textColor: [200, 150, 255],
+      fontSize: 8
+    },
+    alternateRowStyles: {
+      fillColor: [25, 0, 50]
+    },
+    columnStyles: {
+      0: { cellWidth: 35 },
+      1: { cellWidth: 22, halign: "center" },
+      2: { cellWidth: 25, halign: "center" },
+      3: { cellWidth: 90 }
+    }
+  });
+
+  const afterTable = doc.lastAutoTable.finalY + 10;
+
+  // ── Key findings ──
+  doc.setTextColor(176, 38, 255);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("KEY FINDINGS", 20, afterTable);
+
+  const findings = [];
+  if (results.recon) findings.push(`> K-Anonymity Score: ${results.recon.k_anonymity_score} — ${results.recon.k_anonymity_risk}`);
+  if (results.linkage) findings.push(`> ${results.linkage.uniqueness_percent}% of ${results.linkage.total_records?.toLocaleString()} records uniquely identifiable via quasi-identifiers`);
+  if (results.inference) findings.push(`> Sensitive attribute "${results.inference.target_column}" predicted with ${results.inference.attack_accuracy}% accuracy without direct access`);
+  if (results.membership) findings.push(`> Membership inference +${results.membership.improvement_over_random}% above random — training data exposure confirmed`);
+  if (results.deanon) findings.push(`> ${results.deanon.attack_summary?.fully_identified} individuals FULLY re-identified from anonymous dataset`);
+
+  doc.setTextColor(0, 255, 159);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  findings.forEach((f, i) => {
+    doc.text(f, 20, afterTable + 10 + (i * 8));
+  });
+
+  const afterFindings = afterTable + 10 + (findings.length * 8) + 10;
+
+  // ── Real world cases ──
+  doc.setTextColor(176, 38, 255);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("REAL WORLD BREACH COMPARISONS", 20, afterFindings);
+
+  doc.autoTable({
+    startY: afterFindings + 4,
+    head: [["CASE", "PEOPLE AFFECTED", "TIME TO BREACH"]],
+    body: [
+      ["Netflix Prize Dataset (2008)", "500,000+ users", "2 weeks"],
+      ["AOL Search Data (2006)", "657,000 users", "3 days"],
+      ["NYC Taxi Dataset (2014)", "173,000 drivers", "1 day"],
+    ],
+    theme: "grid",
+    headStyles: {
+      fillColor: [43, 0, 96],
+      textColor: [176, 38, 255],
+      fontStyle: "bold",
+      fontSize: 9
+    },
+    bodyStyles: {
+      fillColor: [19, 0, 37],
+      textColor: [200, 150, 255],
+      fontSize: 8
+    }
+  });
+
+  // ── Footer ──
+  doc.setFillColor(43, 0, 96);
+  doc.rect(0, 275, pageWidth, 22, "F");
+
+  doc.setTextColor(100, 60, 120);
+  doc.setFontSize(8);
+  doc.text("PrivacyBreachLab — Educational Privacy Attack Simulation Platform", pageWidth / 2, 283, { align: "center" });
+  doc.text("This report is generated for academic and research purposes only.", pageWidth / 2, 289, { align: "center" });
+
+  doc.save(`PrivacyBreachLab_Report_${Date.now()}.pdf`);
+};
 
 function DamageReport({ results }) {
   // Build radar chart data
@@ -98,6 +276,14 @@ function DamageReport({ results }) {
         <span className={`badge badge-${overallLevel.toLowerCase()}`} style={{ fontSize: "14px", padding: "6px 20px" }}>
           {overallLevel} RISK
         </span>
+        <br /><br />
+        <button
+          className="cyber-btn"
+          onClick={() => generatePDF(results, overallScore, overallLevel)}
+          style={{ fontSize: "13px", padding: "12px 32px" }}
+        >
+          📄 DOWNLOAD BREACH REPORT
+        </button>
       </div>
 
       {/* Score cards */}
