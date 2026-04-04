@@ -96,14 +96,39 @@ def anonymize():
     l = int(request.form.get("l", 3))
     t = float(request.form.get("t", 0.2))
     gen_level = int(request.form.get("gen_level", 1))
-
+    # Smart k limit — don't let k exceed dataset size / 10
+    max_reasonable_k = max(2, len(df) // 10)
+    k = min(k, max_reasonable_k)
     # Auto detect QI and sensitive cols
-    qi_keywords = ["age", "gender", "race", "education", "marital", "country", "occupation", "relationship"]
-    sensitive_keywords = ["income", "salary", "disease", "diagnosis"]
+    qi_keywords = [
+        "age", "gender", "sex", "race", "education", "marital",
+        "country", "occupation", "relationship", "cp", "trestbps",
+        "chol", "fbs", "restecg", "thalach", "exang", "slope", "thal"
+    ]
+    sensitive_keywords = [
+        "income", "salary", "disease", "diagnosis", "target", "outcome",
+        "result", "label", "class", "cancer", "diabetes", "heart",
+        "stroke", "status", "survived", "churn", "fraud", "default"
+    ]
 
     qi_cols = [col for col in df.columns if any(kw in col.lower() for kw in qi_keywords)]
-    sensitive_col = next((col for col in df.columns if any(kw in col.lower() for kw in sensitive_keywords)), df.columns[-1])
 
+    # Smart sensitive col detection
+    sensitive_col = None
+    for col in df.columns:
+        if any(kw in col.lower() for kw in sensitive_keywords):
+            sensitive_col = col
+            break
+    # Fallback to last column
+    if sensitive_col is None:
+        sensitive_col = df.columns[-1]
+
+    # Make sure sensitive col is not in QI cols
+    qi_cols = [col for col in qi_cols if col != sensitive_col]
+
+    # If no QI cols found, use all columns except sensitive
+    if not qi_cols:
+        qi_cols = [col for col in df.columns if col != sensitive_col]
     df_anon, report = run_full_anonymization(df, qi_cols, sensitive_col, k, l, t, gen_level)
 
     # Return anonymized CSV + report

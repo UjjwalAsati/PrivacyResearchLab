@@ -246,6 +246,16 @@ function AnonymizationModule({ file }) {
         </div>
 
         <div style={{ textAlign: "center" }}>
+        {/* Warning for small datasets */}
+          {file && file.size < 50000 && k > 5 && (
+            <p style={{
+              color: "var(--yellow-warn)",
+              fontSize: "12px",
+              marginBottom: "12px"
+            }}>
+              ⚠️ Small dataset detected — try k=2-5 for best results
+            </p>
+          )}
           <button
             className="cyber-btn"
             onClick={runAnonymization}
@@ -603,7 +613,7 @@ function AnonymizationModule({ file }) {
                     This is an inherent property of the data, not a bug.
                   </p>
                 )}
-              </div>
+              </div>Run
             </div>
           )}
 

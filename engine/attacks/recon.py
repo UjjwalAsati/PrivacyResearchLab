@@ -14,7 +14,14 @@ def run_recon(df):
         "name", "email", "phone", "mobile", "address", "zip", "pincode",
         "ssn", "aadhaar", "passport", "license", "dob", "birth", "gender",
         "age", "race", "religion", "salary", "income", "disease", "diagnosis",
-        "ip_address", "location", "city", "state", "country", "lat", "lon"
+        "ip", "location", "city", "state", "country", "lat", "lon"
+    ]
+
+    sensitive_keywords = [
+        "income", "salary", "disease", "diagnosis", "race", "religion",
+        "target", "outcome", "result", "label", "class", "cancer",
+        "diabetes", "heart", "stroke", "death", "hiv", "status",
+        "response", "churn", "fraud", "default", "survived", "output"
     ]
     
     quasi_identifiers = []
@@ -25,7 +32,12 @@ def run_recon(df):
         col_lower = col.lower()
         matched = [kw for kw in pii_keywords if kw in col_lower]
         if matched:
-            if any(kw in col_lower for kw in ["salary", "income", "disease", "diagnosis", "religion", "race"]):
+            # Smart detection — keyword OR last column OR binary column
+            is_sensitive_keyword = any(kw in col_lower for kw in sensitive_keywords)
+            is_last_column = (col == df.columns[-1])
+            is_binary = df[col].nunique() <= 2
+
+            if is_sensitive_keyword or (is_last_column and is_binary):
                 sensitive_columns.append({
                     "column": col,
                     "reason": f"Contains sensitive attribute: {matched[0]}",

@@ -32,6 +32,28 @@ def analyze_vulnerabilities(df):
         "city": "GENERALIZE",
         "country": "GENERALIZE",
         "location": "GENERALIZE",
+        # Medical/generic datasets
+        "target": "SUPPRESS",
+        "outcome": "SUPPRESS",
+        "result": "SUPPRESS",
+        "label": "SUPPRESS",
+        "cancer": "MASK",
+        "diabetes": "MASK",
+        "heart": "MASK",
+        "stroke": "MASK",
+        "status": "GENERALIZE",
+        "survived": "SUPPRESS",
+        "churn": "SUPPRESS",
+        "fraud": "SUPPRESS",
+        "default": "SUPPRESS",
+        "glucose": "GENERALIZE",
+        "insulin": "GENERALIZE",
+        "bmi": "GENERALIZE",
+        "blood": "GENERALIZE",
+        "pressure": "GENERALIZE",
+        "sex": "GENERALIZE",
+        "cp": "GENERALIZE",
+        "thal": "GENERALIZE",
     }
     
     for col in df.columns:

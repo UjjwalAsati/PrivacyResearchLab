@@ -11,17 +11,28 @@ def run_inference_attack(df, target_col=None):
     report = {}
     
     # 1. Auto-detect sensitive target column
-    sensitive_keywords = ["income", "salary", "disease", "diagnosis", 
-                         "race", "religion", "health", "hiv", "cancer"]
-    
+    sensitive_keywords = [
+    "income", "salary", "disease", "diagnosis", "race", "religion",
+    "target", "outcome", "result", "label", "class", "cancer",
+    "diabetes", "heart", "stroke", "death", "hiv", "status",
+    "response", "churn", "fraud", "default", "survived", "output"
+    ]
     if target_col is None:
         for col in df.columns:
             if any(kw in col.lower() for kw in sensitive_keywords):
                 target_col = col
                 break
     
-    if target_col is None or target_col not in df.columns:
-        report["error"] = "No sensitive target column found"
+    # Smart fallback — use last column if no keyword match
+    if target_col is None:
+        # Try last column
+        last_col = df.columns[-1]
+        target_col = last_col
+        report["auto_detected"] = True
+        report["detection_method"] = f"Auto-selected last column '{last_col}' as target"
+
+    if target_col not in df.columns:
+        report["error"] = "Target column not found"
         return report
     
     report["target_column"] = target_col

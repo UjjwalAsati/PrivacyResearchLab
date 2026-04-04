@@ -401,14 +401,14 @@ def run_full_anonymization(df, qi_cols, sensitive_col, k=5, l=3, t=0.2, gen_leve
         kept = [idx for idxs in grps.values() if len(idxs) >= k for idx in idxs]
         df_temp = df_temp.loc[kept].reset_index(drop=True)
         k_check = verify_k_anonymity(df_temp, qi_cols, k)
-        
+
         gen_comparison.append({
             "level": level,
             "label": {1: "FINE", 2: "MEDIUM", 3: "COARSE"}[level],
             "records_retained": len(df_temp),
             "utility_percent": round(len(df_temp) / max(len(df), 1) * 100, 2),
-            "k_satisfied": k_check["satisfied"],
-            "equivalence_classes": k_check["total_equivalence_classes"]
+            "k_satisfied": k_check.get("satisfied", False),
+            "equivalence_classes": k_check.get("total_equivalence_classes", 0)
         })
     report["generalization_comparison"] = gen_comparison
 
