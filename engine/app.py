@@ -8,7 +8,7 @@ from attacks.inference import run_inference_attack
 from attacks.membership import run_membership_inference
 from attacks.deanon import run_deanonymization
 from attacks.defense import analyze_vulnerabilities, apply_fixes, calculate_risk_score
-
+from attacks.anonymization import run_full_anonymization, verify_k_anonymity, verify_l_diversity, verify_t_closeness, get_equivalence_classes
 app = Flask(__name__)
 CORS(app)
 
@@ -81,6 +81,40 @@ def defense_analyze():
         "total_records": len(df),
         "before_risk_score": before_score,
         "before_k_anonymity": before_k
+    })
+
+@app.route("/api/anonymize", methods=["POST"])
+def anonymize():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    df = pd.read_csv(io.StringIO(file.stream.read().decode("utf-8")))
+
+    # Get parameters
+    k = int(request.form.get("k", 5))
+    l = int(request.form.get("l", 3))
+    t = float(request.form.get("t", 0.2))
+    gen_level = int(request.form.get("gen_level", 1))
+
+    # Auto detect QI and sensitive cols
+    qi_keywords = ["age", "gender", "race", "education", "marital", "country", "occupation", "relationship"]
+    sensitive_keywords = ["income", "salary", "disease", "diagnosis"]
+
+    qi_cols = [col for col in df.columns if any(kw in col.lower() for kw in qi_keywords)]
+    sensitive_col = next((col for col in df.columns if any(kw in col.lower() for kw in sensitive_keywords)), df.columns[-1])
+
+    df_anon, report = run_full_anonymization(df, qi_cols, sensitive_col, k, l, t, gen_level)
+
+    # Return anonymized CSV + report
+    output = io.StringIO()
+    df_anon.to_csv(output, index=False)
+
+    return jsonify({
+        "report": report,
+        "anonymized_csv": output.getvalue(),
+        "sensitive_column": sensitive_col,
+        "qi_columns": qi_cols
     })
 
 @app.route("/api/defense/apply", methods=["POST"])
