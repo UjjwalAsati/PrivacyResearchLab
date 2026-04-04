@@ -6,7 +6,7 @@ import LiveFeed from "./components/LiveFeed";
 import DamageReport from "./components/DamageReport";
 import "./index.css";
 import DefenseModule from "./components/DefenseModule";
-
+import AnonymizationModule from "./components/AnonymizationModule";
 function App() {
   const [file, setFile] = useState(null);
   const [selectedAttacks, setSelectedAttacks] = useState([]);
@@ -123,6 +123,10 @@ function App() {
         {results && <DamageReport results={results} />}
         {results && (
           <DefenseModule file={file} attackResults={results} />
+        )}
+        {/* Anonymization Module */}
+        {file && (
+          <AnonymizationModule file={file} />
         )}
       </div>
     </div>
