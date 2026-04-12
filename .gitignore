@@ -1,0 +1,54 @@
+# ══════════════════════════════════
+# Python
+# ══════════════════════════════════
+engine/venv/
+engine/__pycache__/
+engine/attacks/__pycache__/
+engine/report/
+**/*.pyc
+**/*.pyo
+*.egg-info/
+
+# ══════════════════════════════════
+# Node / React
+# ══════════════════════════════════
+frontend/node_modules/
+backend/node_modules/
+frontend/build/
+backend/uploads/
+
+# ══════════════════════════════════
+# Environment & Secrets
+# ══════════════════════════════════
+.env
+.env.local
+.env.production
+backend/.env
+
+# ══════════════════════════════════
+# Datasets (too large for git)
+# ══════════════════════════════════
+engine/*.csv
+engine/*.json
+engine/*.data
+
+# ══════════════════════════════════
+# OS files
+# ══════════════════════════════════
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ══════════════════════════════════
+# IDE
+# ══════════════════════════════════
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+
+# ══════════════════════════════════
+# Logs
+# ══════════════════════════════════
+*.log
+npm-debug.log*
