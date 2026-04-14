@@ -106,7 +106,7 @@ function AnonymizationModule({ file }) {
     formData.append("gen_level", genLevel);
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/api/anonymize", {
+      const res = await fetch("http://127.0.0.1:3001/api/anonymize", {
         method: "POST",
         body: formData,
       });

@@ -79,7 +79,7 @@ function DefenseModule({ file: initialFile }) {
     formData.append("file", fileToUse);
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/api/defense/analyze", {
+      const res = await fetch("http://127.0.0.1:3001/api/defense/analyze", {
         method: "POST",
         body: formData,
       });
@@ -116,7 +116,7 @@ function DefenseModule({ file: initialFile }) {
     formData.append("fixes", JSON.stringify(fixes));
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/api/defense/apply", {
+      const res = await fetch("http://127.0.0.1:3001/api/defense/apply", {
         method: "POST",
         body: formData,
       });

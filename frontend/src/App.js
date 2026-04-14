@@ -43,35 +43,38 @@ function App() {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch(`http://127.0.0.1:5000/api/${attack}`, {
+        const response = await fetch(`http://localhost:3001/api/attacks/${attack}`, {
           method: "POST",
           body: formData,
         });
 
         const data = await response.json();
-        allResults[attack] = data;
-
+        allResults[attack] = data.results || data;
+        if (data.aiExplanation) {
+          allResults[`${attack}_explanation`] = data.aiExplanation;
+        }
         // Log key findings
+        const r = data.results || data;
         if (attack === "recon") {
-          addLog(`✓ Found ${data.quasi_identifiers?.length || 0} quasi-identifiers`, "success");
-          addLog(`✓ Found ${data.sensitive_columns?.length || 0} sensitive columns`, "success");
-          addLog(`✓ Overall risk: ${data.overall_risk_level} (${data.overall_risk_score}/100)`, data.overall_risk_level === "CRITICAL" ? "critical" : "success");
+          addLog(`✓ Found ${r.quasi_identifiers?.length || 0} quasi-identifiers`, "success");
+          addLog(`✓ Found ${r.sensitive_columns?.length || 0} sensitive columns`, "success");
+          addLog(`✓ Overall risk: ${r.overall_risk_level} (${r.overall_risk_score}/100)`, r.overall_risk_level === "CRITICAL" ? "critical" : "success");
         }
         if (attack === "linkage") {
-          addLog(`✓ ${data.uniqueness_percent}% of records uniquely identifiable`, "critical");
-          addLog(`✓ Linkage risk: ${data.linkage_risk_level}`, "critical");
+          addLog(`✓ ${r.uniqueness_percent}% of records uniquely identifiable`, "critical");
+          addLog(`✓ Linkage risk: ${r.linkage_risk_level}`, "critical");
         }
         if (attack === "inference") {
-          addLog(`✓ Inference accuracy: ${data.attack_accuracy}%`, "critical");
-          addLog(`✓ ${data.records_correctly_inferred} records' sensitive data predicted`, "critical");
+          addLog(`✓ Inference accuracy: ${r.attack_accuracy}%`, "critical");
+          addLog(`✓ ${r.records_correctly_inferred} records' sensitive data predicted`, "critical");
         }
         if (attack === "membership") {
-          addLog(`✓ Membership attack accuracy: ${data.attack_accuracy}%`, "critical");
-          addLog(`✓ +${data.improvement_over_random}% above random guess`, "critical");
+          addLog(`✓ Membership attack accuracy: ${r.attack_accuracy}%`, "critical");
+          addLog(`✓ +${r.improvement_over_random}% above random guess`, "critical");
         }
         if (attack === "deanon") {
-          addLog(`✓ Breach rate: ${data.attack_summary?.breach_rate}`, "critical");
-          addLog(`✓ ${data.attack_summary?.fully_identified} people FULLY identified`, "critical");
+          addLog(`✓ Breach rate: ${r.attack_summary?.breach_rate}`, "critical");
+          addLog(`✓ ${r.attack_summary?.fully_identified} people FULLY identified`, "critical");
         }
 
         addLog(`${attack.toUpperCase()} attack complete.`, "success");
