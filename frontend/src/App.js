@@ -7,11 +7,14 @@ import DamageReport from "./components/DamageReport";
 import "./index.css";
 import DefenseModule from "./components/DefenseModule";
 import AnonymizationModule from "./components/AnonymizationModule";
+import AIExplanations from "./components/AIExplanations";
 function App() {
   const [file, setFile] = useState(null);
   const [selectedAttacks, setSelectedAttacks] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState(null);
+  const [explanations, setExplanations] = useState({});
+  const [recommendations, setRecommendations] = useState(null);
   const [feedLogs, setFeedLogs] = useState([]);
 
   const addLog = (message, type = "info") => {
@@ -35,7 +38,7 @@ function App() {
     addLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", "divider");
 
     const allResults = {};
-
+    const allExplanations = {};
     for (const attack of selectedAttacks) {
       addLog(`Launching ${attack.toUpperCase()} attack...`, "attack");
 
@@ -50,9 +53,7 @@ function App() {
 
         const data = await response.json();
         allResults[attack] = data.results || data;
-        if (data.aiExplanation) {
-          allResults[`${attack}_explanation`] = data.aiExplanation;
-        }
+        allExplanations[attack] = data.aiExplanation;
         // Log key findings
         const r = data.results || data;
         if (attack === "recon") {
@@ -77,6 +78,11 @@ function App() {
           addLog(`✓ ${r.attack_summary?.fully_identified} people FULLY identified`, "critical");
         }
 
+        // Log Gemini explanation preview
+        if (data.aiExplanation) {
+          addLog(`🤖 AI: ${data.aiExplanation.substring(0, 80)}...`, "system");
+        }
+
         addLog(`${attack.toUpperCase()} attack complete.`, "success");
         addLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", "divider");
 
@@ -85,10 +91,26 @@ function App() {
       }
     }
 
-    addLog("All attacks complete. Generating damage report...", "system");
-    addLog("YOUR DATASET HAS BEEN BREACHED 💀", "critical");
-    setResults(allResults);
-    setIsRunning(false);
+      addLog("All attacks complete. Generating damage report...", "system");
+
+      // Get AI recommendations
+      try {
+        const recResponse = await fetch("http://localhost:3001/api/gemini/recommendations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ results: allResults })
+        });
+        const recData = await recResponse.json();
+        setRecommendations(recData.recommendations);
+      } catch (e) {
+        console.warn("Recommendations failed:", e.message);
+      }
+
+      addLog("YOUR DATASET HAS BEEN BREACHED 💀", "critical");
+      console.log("Gemini explanations:", allExplanations);
+      setResults(allResults);
+      setExplanations(allExplanations);
+      setIsRunning(false);
   };
 
   return (
@@ -121,6 +143,13 @@ function App() {
 
         {/* Live Feed */}
         {feedLogs.length > 0 && <LiveFeed logs={feedLogs} isRunning={isRunning} />}
+          {/* AI Explanations */}
+        {results && (
+          <AIExplanations
+            explanations={explanations}
+            recommendations={recommendations}
+          />
+        )}
 
         {/* Damage Report */}
         {results && <DamageReport results={results} />}

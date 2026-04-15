@@ -4,28 +4,41 @@ dotenv.config();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Use the current stable 2026 model for Free Tier
+// ✅ Gemini endpoint
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`;
 
+// Delay helper
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// ===============================
+// 🔐 Safe Gemini call with retry
+// ===============================
 async function safeGeminiPost(payload) {
     let attempts = 0;
     const maxAttempts = 3;
-    
+
     while (attempts < maxAttempts) {
         try {
             const response = await axios.post(GEMINI_URL, payload, {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 30000
             });
-            return response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!text || text.trim().length === 0) {
+                console.warn("⚠️ Gemini returned empty response");
+                return null;
+            }
+
+            return text; return response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
         } catch (e) {
             const status = e.response?.status;
+
             if ((status === 503 || status === 429) && attempts < maxAttempts - 1) {
                 attempts++;
                 const waitTime = 3000 * attempts;
-                console.log(`⚠️ Gemini busy (${status}). Retrying in ${waitTime/1000}s...`);
+                console.log(`⚠️ Gemini busy (${status}). Retrying in ${waitTime / 1000}s...`);
                 await delay(waitTime);
             } else {
                 console.error(`❌ Gemini API Error: ${status || 'Network Error'} - ${e.response?.data?.error?.message || e.message}`);
@@ -35,57 +48,153 @@ async function safeGeminiPost(payload) {
     }
 }
 
+// ===============================
+// 🤖 Explain attack results
+// ===============================
 async function explainAttackResults(attackType, results) {
-    const prompts = {
-        recon: `You are a data privacy expert. Analyze these reconnaissance attack results: ${JSON.stringify(results)}. Explain in 3-4 sentences what they mean for a non-technical audience.`,
-        linkage: `You are a data privacy expert. Explain these linkage attack results: ${JSON.stringify(results)}. Focus on re-identification risks.`,
-        inference: `You are a data privacy expert. Explain these attribute inference results: ${JSON.stringify(results)}.`,
-        membership: `You are a data privacy expert. Explain membership inference results: ${JSON.stringify(results)}.`,
-        deanon: `You are a data privacy expert. Explain de-anonymization results: ${JSON.stringify(results)}.`,
-        anonymization: `You are a data privacy expert. Explain k-Anonymity, l-Diversity, and t-Closeness based on: ${JSON.stringify(results)}.`
+
+    const basePrompt = `
+    You are a senior data privacy expert.
+
+    Analyze the following attack results:
+    ${JSON.stringify(results, null, 2)}
+
+    STRICTLY follow this format (NO markdown, NO bold, NO extra text):
+
+    1. What happened: <one complete sentence>
+    2. Why it is dangerous: <one complete sentence>
+    3. Real-world impact: <one complete sentence>
+
+    Rules:
+    - DO NOT use ** or any markdown
+    - DO NOT break sentences
+    - DO NOT stop mid sentence
+    - Each point must be complete
+    - Maximum 100 words
+    `;
+
+    const attackContext = {
+        recon: "Focus on exposed identifiers and risk discovery.",
+        linkage: "Focus on re-identification risk and uniqueness.",
+        inference: "Focus on prediction of sensitive attributes.",
+        membership: "Focus on whether someone’s data presence can be detected.",
+        deanon: "Focus on identity exposure and privacy breach.",
+        anonymization: "Explain privacy protection techniques and their weaknesses."
     };
 
-    const prompt = prompts[attackType] || `Explain these results: ${JSON.stringify(results)}`;
-    
-    await delay(2000); // 2-second safety delay
+    const prompt = `${basePrompt}\nContext: ${attackContext[attackType] || ""}`;
 
-    const text = await safeGeminiPost({
+    await delay(2000); // safety delay
+
+    let text = await safeGeminiPost({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 300 }
+        generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 500
+        }
     });
 
-    return text || 'Unable to generate explanation.';
+    // 🔥 Retry once if failed
+    if (!text) {
+        console.log("🔁 Retrying Gemini...");
+        await delay(2000);
+
+        text = await safeGeminiPost({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 500
+            }
+        });
+    }
+
+    const cleaned = text
+    ?.replace(/\*\*/g, '')   // remove **
+    ?.replace(/\*/g, '')     // remove *
+    ?.replace(/\n{2,}/g, '\n')
+    ?.trim();
+
+    return cleaned || '⚠️ AI could not generate explanation. Try again.';
 }
 
+// ===============================
+// 🛡️ Generate recommendations
+// ===============================
 async function generatePrivacyRecommendations(allResults) {
-    const prompt = `You are a data privacy expert. Based on these results: ${JSON.stringify(allResults)}, provide 5 actionable recommendations to protect the dataset.`;
-    
+
+    const prompt = `
+You are a data privacy expert.
+
+Based on the following attack results:
+${JSON.stringify(allResults, null, 2)}
+
+Provide EXACTLY 5 recommendations.
+
+Format:
+1. [Title]: Explanation
+2. [Title]: Explanation
+3. [Title]: Explanation
+4. [Title]: Explanation
+5. [Title]: Explanation
+
+Rules:
+- Each recommendation must be actionable
+- Keep each under 30 words
+- Avoid generic advice
+`;
+
     await delay(2000);
 
     const text = await safeGeminiPost({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.5, maxOutputTokens: 500 }
+        generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 400
+        }
     });
 
-    return text || 'Unable to generate recommendations.';
+    return text?.trim() || '⚠️ Unable to generate recommendations.';
 }
 
+// ===============================
+// 📊 t-Closeness analysis
+// ===============================
 async function analyzeTClosenessViolations(tResults, datasetName) {
-    const prompt = `Explain t-Closeness violations for ${datasetName}: ${JSON.stringify(tResults)}`;
-    
+
+    const prompt = `
+You are a data privacy expert.
+
+Explain t-Closeness violations for dataset: ${datasetName}
+
+Data:
+${JSON.stringify(tResults, null, 2)}
+
+Explain:
+1. What violation occurred
+2. Why it matters
+3. Risk level
+
+Keep it simple and under 100 words.
+`;
+
     await delay(2000);
 
     const text = await safeGeminiPost({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.6, maxOutputTokens: 200 }
+        generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 500
+        }
     });
 
-    return text || 'Unable to analyze violations.';
+    return text?.trim() || '⚠️ Unable to analyze violations.';
 }
 
-// CRITICAL: Ensure these names match what you are calling in your routes/controllers
-module.exports = { 
-    explainAttackResults, 
-    generatePrivacyRecommendations, 
-    analyzeTClosenessViolations 
+// ===============================
+// 📦 Export
+// ===============================
+module.exports = {
+    explainAttackResults,
+    generatePrivacyRecommendations,
+    analyzeTClosenessViolations
 };

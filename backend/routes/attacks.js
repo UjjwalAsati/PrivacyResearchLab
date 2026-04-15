@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/upload');
-const { attackLimiter } = require('../middleware/rateLimiter');
+
+// ✅ Import BOTH limiters
+const { attackLimiter, geminiLimiter } = require('../middleware/rateLimiter');
+
 const { callFlask } = require('../services/flaskService');
-const { explainAttackResults } = require('../services/geminiService');
+const { explainAttackResults, generatePrivacyRecommendations } = require('../services/geminiService');
+
 const fs = require('fs');
 
 // Helper to clean up uploaded file
@@ -11,8 +15,10 @@ const cleanup = (filePath) => {
   try { fs.unlinkSync(filePath); } catch (e) {}
 };
 
-// Run single attack
-router.post('/:attackType', attackLimiter, upload.single('file'), async (req, res) => {
+// ===============================
+// 🚀 Run single attack
+// ===============================
+router.post('/:attackType', attackLimiter, geminiLimiter, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const { attackType } = req.params;
@@ -24,19 +30,37 @@ router.post('/:attackType', attackLimiter, upload.single('file'), async (req, re
   }
 
   try {
-    // Call Flask attack engine
+    // 🔹 Step 1: Call Flask
     const results = await callFlask(`/api/${attackType}`, req.file.path);
 
-    // Get Gemini explanation
+    // 🔹 Step 2: Prepare CLEAN data for Gemini (IMPORTANT)
+    const summarized = {
+      risk: results?.overall_risk_level,
+      score: results?.overall_risk_score,
+      sensitive_columns: results?.sensitive_columns?.length,
+      quasi_identifiers: results?.quasi_identifiers?.length
+    };
+
+    // 🔹 Step 3: Call Gemini
     let aiExplanation = null;
     try {
-      aiExplanation = await explainAttackResults(attackType, results);
+      aiExplanation = await explainAttackResults(attackType, summarized);
     } catch (geminiErr) {
-      console.warn('Gemini explanation failed:', geminiErr.message);
+      console.error('❌ Gemini failed:', {
+        attackType,
+        error: geminiErr.message
+      });
     }
 
     cleanup(req.file.path);
-    res.json({ results, aiExplanation, attackType });
+
+    // ✅ Clean response
+    res.json({
+      success: true,
+      attackType,
+      results,
+      aiExplanation
+    });
 
   } catch (err) {
     cleanup(req.file.path);
@@ -44,29 +68,28 @@ router.post('/:attackType', attackLimiter, upload.single('file'), async (req, re
   }
 });
 
-// Run all attacks
-router.post('/run/all', attackLimiter, upload.single('file'), async (req, res) => {
+// ===============================
+// 🚀 Run ALL attacks
+// ===============================
+router.post('/run/all', attackLimiter, geminiLimiter, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const attacks = ['recon', 'linkage', 'inference', 'membership', 'deanon'];
   const results = {};
-  const explanations = {};
+  const explanations = {}; // kept for structure (not used)
 
   try {
+    // ❌ NO Gemini here (avoid duplicate calls)
     for (const attack of attacks) {
       try {
         results[attack] = await callFlask(`/api/${attack}`, req.file.path);
-        try {
-          explanations[attack] = await explainAttackResults(attack, results[attack]);
-        } catch (e) {
-          explanations[attack] = null;
-        }
+        explanations[attack] = null;
       } catch (e) {
         results[attack] = { error: e.message };
       }
     }
 
-    // Overall score
+    // 🔹 Calculate overall score
     const scores = {
       recon: results.recon?.overall_risk_score || 0,
       linkage: results.linkage?.linkage_risk_score || 0,
@@ -74,21 +97,29 @@ router.post('/run/all', attackLimiter, upload.single('file'), async (req, res) =
       membership: results.membership?.membership_risk_score || 0,
       deanon: results.deanon?.deanon_risk_score || 0,
     };
-    const overallScore = Math.round(
-      Object.values(scores).reduce((a, b) => a + b, 0) / Object.values(scores).filter(s => s > 0).length
-    );
 
-    // Get recommendations
+    const validScores = Object.values(scores).filter(s => s > 0);
+    const overallScore = validScores.length
+      ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length)
+      : 0;
+
+    // 🔹 Gemini ONLY for recommendations
     let recommendations = null;
     try {
-      const { generatePrivacyRecommendations } = require('../services/geminiService');
       recommendations = await generatePrivacyRecommendations({ ...results, overallScore });
     } catch (e) {
-      console.warn('Recommendations failed:', e.message);
+      console.warn('⚠️ Recommendations failed:', e.message);
     }
 
     cleanup(req.file.path);
-    res.json({ results, explanations, overallScore, recommendations });
+
+    res.json({
+      success: true,
+      results,
+      explanations, // always null (frontend won’t use)
+      overallScore,
+      recommendations
+    });
 
   } catch (err) {
     cleanup(req.file.path);
