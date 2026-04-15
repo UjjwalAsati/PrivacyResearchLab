@@ -52,3 +52,5 @@ desktop.ini
 # ══════════════════════════════════
 *.log
 npm-debug.log*
+
+datasets

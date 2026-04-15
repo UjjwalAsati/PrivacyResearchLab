@@ -33,8 +33,7 @@ def run_inference_attack(df, target_col=None):
 
     if target_col not in df.columns:
         report["error"] = "Target column not found"
-        return report
-    
+        return report    
     report["target_column"] = target_col
     report["attack_type"] = "Attribute Inference Attack"
     report["description"] = (

@@ -9,9 +9,6 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Helper to handle API calls with retry logic for 503/429 errors
- */
 async function safeGeminiPost(payload) {
     let attempts = 0;
     const maxAttempts = 3;
